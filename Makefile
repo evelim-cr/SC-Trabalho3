@@ -5,5 +5,5 @@ clean:
 
 rebuild: clean worm
 
-worm: main.c exploit.c
-	gcc -m32 -static-libgcc -Os -o $@ $^
+worm: main.c
+	gcc -o $@ $^
