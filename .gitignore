@@ -1,2 +1,3 @@
 worm
 *.o
+*.qcow2
