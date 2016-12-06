@@ -43,6 +43,7 @@ void generateIPs(ip_type type, range *ip){
             ip[1].end = 31;
             break;
         case CLASS_C:
+        default:
             ip[0].start = 192;
             ip[0].end = 192;
             ip[1].start = 168;
@@ -51,7 +52,7 @@ void generateIPs(ip_type type, range *ip){
     }
 }
 
-void testConnection(char* ip, int porta){
+int testConnection(char *ip, int porta){
     int mySocket;
     struct sockaddr_in connection;
     int connector;
@@ -82,27 +83,43 @@ void testConnection(char* ip, int porta){
             *pos = '\0';
 
         printf("%s\t%d\t%s\n", ip, porta, recebe);
+        return 1;
     }
-
     close(mySocket);
+    return 0;
 }
 
 /**
 *   Função que testa os IPs definidos em ips, utilizando o range de porta definidos em portRange.
 **/
 void startTestConnection(range ips[], range ports){
-    int campo1,campo2,campo3,campo4,porta;
     char ip[IP_FIELD_SIZE];
+    int campo1,campo2,campo3,campo4,porta;
+    open_ip target;
 
     for(campo1 = ips[0].start; campo1 <= ips[0].end; campo1++){
         for(campo2 = ips[1].start; campo2 <= ips[1].end; campo2++){
             for(campo3 = ips[2].start; campo3 <= ips[2].end; campo3++){
                 for(campo4 = ips[3].start; campo4 <= ips[3].end; campo4++){
+                    sprintf(ip,"%d.%d.%d.%d",campo1,campo2,campo3,campo4);
+                    strcpy(target.ip,ip);
                     for(porta = ports.start; porta <= ports.end; porta++){
-                        sprintf(ip,"%d.%d.%d.%d",campo1,campo2,campo3,campo4);
                         printf("IP: %s\n",ip);
-                        testConnection(ip,porta);
+                        if(testConnection(ip,porta)){
+                            if(porta == FTP)
+                                target.open_ftp = 1;
+                            else if(porta == TELNET)
+                                target.open_telnet = 1;
+                        }
                     }
+                    if(target.open_ftp && target.open_telnet)
+                        //TODO: Random Attack
+                    else(target.open_ftp)
+                        //TODO: Exploit
+                    else(target.open_telnet)
+                        //TODO: Brute force
+                    target.open_ftp = 0;
+                    target.open_telnet = 0;
                 }
             }
         }

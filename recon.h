@@ -28,17 +28,28 @@ typedef enum {
     CLASS_C
 }ip_type;
 
+typedef enum {
+    FTP,
+    TELNET
+}service;
+
 typedef struct {
     unsigned int start;
     unsigned int end;
 }range;
+
+typedef struct {
+    char ip[IP_FIELD_SIZE];
+    unsigned short int open_ftp;
+    unsigned short int open_telnet;
+}open_ip;
 
 /**
 *   Gera os ips a serem testados.
 **/
 void generateIPs(ip_type type, range *ip);
 
-void testConnection(char* ip, int porta);
+int testConnection(char* ip, int porta);
 
 /**
 *   Função que testa os IPs definidos em ips, utilizando o range de porta definidos em portRange.
