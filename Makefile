@@ -5,5 +5,5 @@ clean:
 
 rebuild: clean worm
 
-worm: main.c exploit.c
+worm: main.c exploit.c recon.c
 	gcc -o $@ $^
