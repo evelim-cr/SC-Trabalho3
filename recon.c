@@ -69,7 +69,7 @@ int testConnection(char *ip, int porta){
     connector = connect(mySocket, (struct sockaddr * ) &connection, sizeof(connection));
 
     if(connector >= 0) {
-        /* escreve qualquer coisa, já que alguns serviços só enviam
+        /* escreve qualquer coisa, ja que alguns servicos so enviam
             * o banner depois de alguma escrita */
         len = write(mySocket, "teste", strlen("teste"));
 
@@ -83,6 +83,7 @@ int testConnection(char *ip, int porta){
             *pos = '\0';
 
         printf("%s\t%d\t%s\n", ip, porta, recebe);
+        close(mySocket);
         return 1;
     }
     close(mySocket);
@@ -90,65 +91,7 @@ int testConnection(char *ip, int porta){
 }
 
 /**
-*   Função que testa os IPs definidos em ips, utilizando o range de porta definidos em portRange.
-**/
-void startTestConnection(range ips[], range ports){
-    char ip[IP_FIELD_SIZE];
-    int campo1,campo2,campo3,campo4,porta;
-    open_ip target;
-
-    for(campo1 = ips[0].start; campo1 <= ips[0].end; campo1++){
-        for(campo2 = ips[1].start; campo2 <= ips[1].end; campo2++){
-            for(campo3 = ips[2].start; campo3 <= ips[2].end; campo3++){
-                for(campo4 = ips[3].start; campo4 <= ips[3].end; campo4++){
-                    sprintf(ip,"%d.%d.%d.%d",campo1,campo2,campo3,campo4);
-                    strcpy(target.ip,ip);
-                    for(porta = ports.start; porta <= ports.end; porta++){
-                        printf("IP: %s\n",ip);
-                        if(testConnection(ip,porta)){
-                            if(porta == FTP)
-                                target.open_ftp = 1;
-                            else if(porta == TELNET)
-                                target.open_telnet = 1;
-                        }
-                    }
-                    if(target.open_ftp && target.open_telnet)
-                        //TODO: Random Attack
-                    else(target.open_ftp)
-                        //TODO: Exploit
-                    else(target.open_telnet)
-                        //TODO: Brute force
-                    target.open_ftp = 0;
-                    target.open_telnet = 0;
-                }
-            }
-        }
-    }
-}
-
-/**
-* Função que retorna o rannge da entrada str.
-**/
-int getRange(char *str, char *splitter){
-    char *token = strtok(str, splitter);
-    char *last = malloc(sizeof(str));
-    while(token) {
-        strcpy(last,token);
-        token = strtok(NULL, splitter);
-    }
-    int range;
-    if(strcmp(str,last) == 0){
-        range = 0;
-    }
-    else{
-        range = atoi(last);
-    }
-    free (last);
-    return range;
-}
-
-/**
-*   Função que remove o ultimo campo do IP.
+*   Funcao que remove o ultimo campo do IP.
 **/
 char * ipSplit(char *str){
     int ipLen = strlen(str);
@@ -168,7 +111,7 @@ char * ipSplit(char *str){
 }
 
 /**
-* Função que retorna o ultimo campo do IP, eg: se str = 192.168.0.25 retorna o valor 25
+* Funcao que retorna o ultimo campo do IP, eg: se str = 192.168.0.25 retorna o valor 25
 **/
 int getLastField(char *str){
     int ipLen = strlen(str);
@@ -190,19 +133,19 @@ int getLastField(char *str){
 }
 
 /**
-*   Função que faz a validação da entrada strValidate de acordo com o regex definido no pattern.
+*   Funcao que faz a validacao da entrada strValidate de acordo com o regex definido no pattern.
 **/
 int regexValidation(char *strValidate, char * pattern){
     regex_t reg;
 
     /* compila a ER passada em argv[1]
-     * em caso de erro, a função retorna diferente de zero */
+     * em caso de erro, a funcao retorna diferente de zero */
     if (regcomp(&reg , pattern, REG_EXTENDED|REG_NOSUB) != 0) {
         fprintf(stderr,"erro regcomp\n");
         exit(1);
     }
-    /* tenta casar a ER compilada (&reg) com a entrada (argv[2])
-     * se a função regexec retornar 0 casou, caso contrário não */
+    /* tenta casar a ER compilada (reg) com a entrada (argv[2])
+     * se a funcao regexec retornar 0 casou, caso contrario não */
     if ((regexec(&reg, strValidate, 0, (regmatch_t *)NULL, 0)) == 0)
         return 1;
     else
@@ -210,7 +153,7 @@ int regexValidation(char *strValidate, char * pattern){
 }
 
 /**
-*   Função que Imprime o horário.
+*   Funcao que Imprime o horario.
 **/
 void printTimestamp() {
     time_t t = time(NULL);

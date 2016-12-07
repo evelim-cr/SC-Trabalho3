@@ -13,8 +13,6 @@
 // #include <netdb.h>
 // #include <time.h>
 
-#include "recon.h"
-
 #define MAX_STRING_ARRAY 1
 #define IP_FIELD_SIZE 16
 
@@ -29,8 +27,8 @@ typedef enum {
 }ip_type;
 
 typedef enum {
-    FTP,
-    TELNET
+    FTP = 21,
+    TELNET = 23
 }service;
 
 typedef struct {
@@ -52,32 +50,22 @@ void generateIPs(ip_type type, range *ip);
 int testConnection(char* ip, int porta);
 
 /**
-*   Função que testa os IPs definidos em ips, utilizando o range de porta definidos em portRange.
-**/
-void startTestConnection(range ips[], range ports);
-
-/**
-* Função que retorna o rannge da entrada str.
-**/
-int getRange(char *str, char *splitter);
-
-/**
-*   Função que remove o ultimo campo do IP.
+*   Funcao que remove o ultimo campo do IP.
 **/
 char * ipSplit(char *str);
 
 /**
-* Função que retorna o ultimo campo do IP, eg: se str = 192.168.0.25 retorna o valor 25
+* Funcao que retorna o ultimo campo do IP, eg: se str = 192.168.0.25 retorna o valor 25
 **/
 int getLastField(char *str);
 
 /**
-*   Função que faz a validação da entrada strValidate de acordo com o regex definido no pattern.
+*   Funcao que faz a validacao da entrada strValidate de acordo com o regex definido no pattern.
 **/
 int regexValidation(char *strValidate, char * pattern);
 
 /**
-*   Função que Imprime o horário.
+*   Funcao que Imprime o horario.
 **/
 void printTimestamp();
 #endif
