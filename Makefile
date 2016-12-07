@@ -1,3 +1,4 @@
+
 all: worm
 
 clean:
@@ -5,5 +6,5 @@ clean:
 
 rebuild: clean worm
 
-worm: main.c exploit.c recon.c brutexor.c
+worm: main.c exploit.c recon.c brutexor.c telnet.c
 	gcc -o $@ $^

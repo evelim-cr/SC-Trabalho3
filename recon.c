@@ -9,157 +9,206 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <time.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <ifaddrs.h>
 
 #include "recon.h"
 
-#define MAX_STRING_ARRAY 1
-#define IP_FIELD_SIZE 16
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
-#define SOCK_FAMILY AF_INET
-#define SOCKET_TYPE SOCK_STREAM
-#define SOCK_TCP 6
+#define FTP_PORT 21
+#define TELNET_PORT 23
+#define CONNECT_TIMEOUT 2
+#define MAX_CONNECTIONS 16
 
-/**
-*   Gera os ips a serem testados.
-**/
-void generateIPs(ip_type type, range *ip){
+int getLocalSubnets(ip_subnet **subnets) {
+    struct ifaddrs *ifaddr, *ifa;
+    struct sockaddr_in *addr_in, *netmask_in;
+    int count;
 
-    //Fixos para os 3 tipos
-    ip[2].start = 0;
-    ip[2].end = 255;
-    ip[3].start = 0;
-    ip[3].end = 255;
-    switch(type){
-        case CLASS_A:
-            ip[0].start = 10;
-            ip[0].end = 10;
-            ip[1].start = 0;
-            ip[1].end = 255;
-            break;
-        case CLASS_B:
-            ip[0].start = 172;
-            ip[0].end = 172;
-            ip[1].start = 16;
-            ip[1].end = 31;
-            break;
-        case CLASS_C:
-        default:
-            ip[0].start = 192;
-            ip[0].end = 192;
-            ip[1].start = 168;
-            ip[1].end = 168;
-            break;
+    if (getifaddrs(&ifaddr) < 0) {
+        fprintf(stderr, "Erro ao obter interfaces locais.\n");
+        return -1;
     }
+
+    count = 0;
+    (*subnets) = malloc(128 * sizeof(ip_subnet));
+
+    (*subnets)[count].addr = inet_addr("10.2.0.0");
+    (*subnets)[count].netmask = inet_addr("255.255.255.0");
+    count++;
+
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        // pula interfaces sem endereço ipv4
+        if ((ifa->ifa_addr == NULL) || (ifa->ifa_addr->sa_family != AF_INET))
+            continue;
+
+        // pular interface de loopback
+        if (strcmp(ifa->ifa_name, "lo") == 0)
+            continue;
+
+        addr_in = (struct sockaddr_in *) ifa->ifa_addr;
+        netmask_in = (struct sockaddr_in *) ifa->ifa_netmask;
+
+        (*subnets)[count].addr = addr_in->sin_addr.s_addr;
+        (*subnets)[count].netmask = netmask_in->sin_addr.s_addr;
+        count++;
+    }
+
+    freeifaddrs(ifaddr);
+
+    (*subnets)[count].addr = inet_addr("192.168.0.0");
+    (*subnets)[count].netmask = inet_addr("255.255.0.0");
+    count++;
+
+    (*subnets)[count].addr = inet_addr("10.0.0.0");
+    (*subnets)[count].netmask = inet_addr("255.0.0.0");
+    count++;
+
+    (*subnets)[count].addr = inet_addr("172.16.0.0");
+    (*subnets)[count].netmask = inet_addr("255.240.0.0");
+    count++;
+
+    return count;
 }
 
-int testConnection(char *ip, int porta){
-    int mySocket;
-    struct sockaddr_in connection;
-    int connector;
-    int len;
-    char recebe[1024];
-    char *pos;
-
-    mySocket = socket(SOCK_FAMILY, SOCKET_TYPE, SOCK_TCP);
-    connection.sin_family = SOCK_FAMILY;
-    connection.sin_port = htons(porta);
-    connection.sin_addr.s_addr = inet_addr(ip);
-
-    bzero(&(connection.sin_zero),8);
-    connector = connect(mySocket, (struct sockaddr * ) &connection, sizeof(connection));
-
-    if(connector >= 0) {
-        /* escreve qualquer coisa, ja que alguns servicos so enviam
-            * o banner depois de alguma escrita */
-        len = write(mySocket, "teste", strlen("teste"));
-
-        /* tenta realizar uma leitura, possivelmente capturando uma
-            * mensagem de banner */
-        bzero(recebe, sizeof(recebe));
-        len = read(mySocket, recebe, 1024);
-
-        /* ignora o \n e tudo que vem depois dele */
-        if ((pos=strchr(recebe, '\n')) != NULL)
-            *pos = '\0';
-
-        printf("%s\t%d\t%s\n", ip, porta, recebe);
-        close(mySocket);
-        return 1;
-    }
-    close(mySocket);
-    return 0;
-}
-
-/**
-*   Funcao que remove o ultimo campo do IP.
-**/
-char * ipSplit(char *str){
-    int ipLen = strlen(str);
-    char *splittedIp;
-    int split = 0;
-    int aux = 0;
+void scanSubnets(ip_subnet *subnets, int subnet_count, void (*callback)(uint32_t,int,int)) {
+    socket_info ftp_connections[MAX_CONNECTIONS];
+    socket_info telnet_connections[MAX_CONNECTIONS];
+    uint32_t begin, end, cur;
+    uint32_t block_size, block_offset;
+    struct in_addr addr_in, netmask_in;
     int i;
-    for(i = 0; i < ipLen; i++) {
-        if(str[i] == '.')
-            split = aux + 1;
-        aux ++;
-    }
-    splittedIp =(char *) malloc(split + 1);
-    memcpy(splittedIp, str, split);
-    splittedIp[split] = '\0';
-    return splittedIp;
-}
+    int ftp_open, telnet_open;
 
-/**
-* Funcao que retorna o ultimo campo do IP, eg: se str = 192.168.0.25 retorna o valor 25
-**/
-int getLastField(char *str){
-    int ipLen = strlen(str);
-    char *splittedIp;
-    int aux = 0;
-    int i;
-    char* field;
-    field = (char *) malloc(4);
-    for(i = 0; i < ipLen; i++) {
-        if(str[i] == '.')
-            aux = 0;
-        else{
-            field[aux] = str[i];
-            aux ++;
+    for (i=0; i<subnet_count; i++) {
+        begin = subnets[i].addr & subnets[i].netmask;
+        end = subnets[i].addr ^ ~subnets[i].netmask;
+
+        addr_in.s_addr = subnets[i].addr;
+        netmask_in.s_addr = subnets[i].netmask;
+
+        printf("# SCANNING SUBNET: %s", inet_ntoa(addr_in));
+        printf("/%s\n", inet_ntoa(netmask_in));
+
+        cur=begin;
+        while (cur < end) {
+            block_size = MIN(ntohl(end) - ntohl(cur), MAX_CONNECTIONS);
+
+            for (block_offset=0; block_offset<block_size; block_offset++) {
+                ftp_connections[block_offset].addr.sin_family = AF_INET;
+                ftp_connections[block_offset].addr.sin_port = htons(FTP_PORT);
+                ftp_connections[block_offset].addr.sin_addr.s_addr = cur;
+
+                telnet_connections[block_offset].addr.sin_family = AF_INET;
+                telnet_connections[block_offset].addr.sin_port = htons(TELNET_PORT);
+                telnet_connections[block_offset].addr.sin_addr.s_addr = cur;
+
+                // printf("scanning %s\n", inet_ntoa(ftp_connections[block_offset].addr.sin_addr));
+
+                cur+=htonl(1);
+            }
+
+            asyncTestConnection(ftp_connections, block_size);
+            asyncTestConnection(telnet_connections, block_size);
+
+            for (block_offset=0; block_offset<MAX_CONNECTIONS; block_offset++) {
+                ftp_open = ftp_connections[block_offset].open;
+                telnet_open = telnet_connections[block_offset].open;
+
+                if (ftp_open || telnet_open) {
+                    callback(ftp_connections[block_offset].addr.sin_addr.s_addr, ftp_open, telnet_open);
+                }
+            }
         }
     }
-    field[aux]='\0';
-    return atoi(field);
 }
 
-/**
-*   Funcao que faz a validacao da entrada strValidate de acordo com o regex definido no pattern.
-**/
-int regexValidation(char *strValidate, char * pattern){
-    regex_t reg;
 
-    /* compila a ER passada em argv[1]
-     * em caso de erro, a funcao retorna diferente de zero */
-    if (regcomp(&reg , pattern, REG_EXTENDED|REG_NOSUB) != 0) {
-        fprintf(stderr,"erro regcomp\n");
-        exit(1);
+int asyncTestConnection(socket_info *connections, int conn_count) {
+    int res;
+    long arg;
+    fd_set myset;
+    struct timeval tv;
+    int valopt;
+    socklen_t lon;
+    int i;
+
+    for (i=0; i<conn_count; i++) {
+        connections[i].ready = 0;
+        connections[i].error = 0;
+        connections[i].open = 0;
+
+        connections[i].sock = socket(AF_INET, SOCK_STREAM, 0);
+
+        // set non-blocking
+        arg = fcntl(connections[i].sock, F_GETFL, NULL);
+        arg |= O_NONBLOCK;
+        fcntl(connections[i].sock, F_SETFL, arg);
+
+        // trying to connect with timeout
+        res = connect(connections[i].sock, (struct sockaddr *)&connections[i].addr, sizeof(struct sockaddr));
+        if ((res < 0) && (errno != EINPROGRESS)) {
+            connections[i].ready = 1;
+            connections[i].error = errno;
+        }
     }
-    /* tenta casar a ER compilada (reg) com a entrada (argv[2])
-     * se a funcao regexec retornar 0 casou, caso contrario não */
-    if ((regexec(&reg, strValidate, 0, (regmatch_t *)NULL, 0)) == 0)
-        return 1;
-    else
-        return 0;
+
+    while (1) {
+        tv.tv_sec = CONNECT_TIMEOUT;
+        tv.tv_usec = 0;
+
+        FD_ZERO(&myset);
+
+        for (i=0; i<conn_count; i++) {
+            if (!connections[i].ready) {
+                FD_SET(connections[i].sock, &myset);
+            }
+        }
+
+        res = select(connections[conn_count-1].sock+1, NULL, &myset, NULL, &tv);
+
+        if (res <= 0) {
+            // timeout
+            break;
+        }
+
+        for (i=0; i<conn_count; i++) {
+            // verifica se a conexão ainda não está pronta
+            if (!FD_ISSET(connections[i].sock, &myset)) {
+                continue;
+            }
+
+            // verifica o estado da conexão e coloca no atributo error do connections
+            lon = sizeof(int);
+            getsockopt(connections[i].sock, SOL_SOCKET, SO_ERROR, (void*)(&connections[i].error), &lon);
+
+            // conexão pronta
+            connections[i].ready = 1;
+
+            // se não houve erros, então a porta está aberta
+            if (!connections[i].error) {
+                connections[i].open = 1;
+            }
+        }
+    }
+
+    for (i=0; i<conn_count; i++) {
+        // set blocking again
+        arg = fcntl(connections[i].sock, F_GETFL, NULL);
+        arg &= ~O_NONBLOCK;
+        fcntl(connections[i].sock, F_SETFL, arg);
+
+        // close the connection
+        close(connections[i].sock);
+    }
 }
 
-/**
-*   Funcao que Imprime o horario.
-**/
-void printTimestamp() {
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    char buf[255];
 
-    strftime(buf, sizeof(buf), "%c", &tm);
-    printf("%s", buf);
+char *addrToString(uint32_t addr) {
+    struct in_addr a;
+    a.s_addr = addr;
+    return inet_ntoa(a);
 }
