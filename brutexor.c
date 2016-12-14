@@ -60,27 +60,41 @@ void append_char_function(char append_char, char *word, int *i){
 }
 
 // Retorna a palavra correspondente ao md5
-
-// int main(int argc, char **argv){
-//     timestamp();
-//     char *result;
-//     char *cadeia;
-//     if(argv[1]!= NULL){
-//         cadeia = malloc (sizeof(argv[1]) * sizeof(char *));
-//         strcpy(cadeia,argv[1]);
-//         RemoveSpaces(cadeia);
-//         if(argv[2]!=NULL){
-//     	    result = findWord(argv[2]);    
-//         	if(result != NULL)
-//                 printf("A Dica é:\n %s\n", makeXOR(result, argv[1]));
-//             else
-//                 printf("\nEPA, nao achei!\n");
-//     	}else{
-//     	    printf("Valor do MD5 chave não pode ser nulo\n");
-//     	}
-//     }else{
-//         printf("Valor da  não pode ser nulo\n");
-//     }
-//     timestamp();
-//     return 1;
-// }
+void findWord() {
+    int size = 0;
+    int first, second, third, fourth, fifth, sixth, seventh, eighth;
+    int second_flag, third_flag, fourth_flag, fifth_flag, sixth_flag, seventh_flag, eighth_flag;
+    char first_char, second_char, third_char, fourth_char, fifth_char, sixth_char, seventh_char, eighth_char;
+    int word_index = 0;
+    char *word;
+	char buffer[33];
+    
+	for(first = 0; first <= 62; first ++){
+        first_char = return_char(first, &size);
+        
+        for(second = return_flag(first); second <= 62; second ++){
+            second_char = return_char(second, &size);
+            
+            for(third = return_flag(second); third <= 62; third ++){
+                third_char = return_char(third, &size);
+                
+                for(fourth = return_flag(third); fourth <= 62; fourth ++){
+                    fourth_char = return_char(fourth, &size);
+                    
+                    word = malloc (size + 2);
+                                    
+                    int i = 0;
+                                    
+                    append_char_function(first_char, word, &i);
+                    append_char_function(second_char, word, &i);
+                    append_char_function(third_char, word, &i);
+                    append_char_function(fourth_char, word, &i);;
+                    i++;
+                    word[i] = '\0';
+                    // runTelNetBruteForce(hostname, word);
+                               
+                }
+            }
+        }
+    }
+}

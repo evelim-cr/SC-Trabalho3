@@ -18,4 +18,6 @@ char return_char(int value,int * size);
 // Concatena um caracter a uma string
 void append_char_function(char append_char, char *word, int *i);
 
+void findWord();
+
 #endif

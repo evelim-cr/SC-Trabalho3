@@ -106,7 +106,7 @@ void scanSubnets(ip_subnet *subnets, int subnet_count, void (*callback)(uint32_t
                 telnet_connections[block_offset].addr.sin_port = htons(TELNET_PORT);
                 telnet_connections[block_offset].addr.sin_addr.s_addr = cur;
 
-                // printf("scanning %s\n", inet_ntoa(ftp_connections[block_offset].addr.sin_addr));
+                printf("# Scanning %s...\n", inet_ntoa(ftp_connections[block_offset].addr.sin_addr));
 
                 cur+=htonl(1);
             }
