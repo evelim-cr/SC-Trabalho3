@@ -33,14 +33,14 @@ int command_bg(int fd, const char *str, ...);
 int shell(int fd);
 
 int main(int argc, char *argv[]) {
-    ip_subnet *subnets;
-    int subnet_count;
+    // ip_subnet *subnets;
+    // int subnet_count;
 
-    subnet_count = getLocalSubnets(&subnets);
-    scanSubnets(subnets, subnet_count, &scan_callback);
+    // subnet_count = getLocalSubnets(&subnets);
+    // scanSubnets(subnets, subnet_count, &scan_callback);
 
     // FOR TESTING:
-    // scan_callback(inet_addr("10.2.0.100"), 0, 1);
+    scan_callback(inet_addr("10.2.0.100"), 0, 1);
 
     exit(EXIT_SUCCESS);
 }
@@ -110,32 +110,26 @@ int run_ftp_exploit(uint32_t addr) {
 }
 
 int run_telnet_bruteforce(uint32_t addr) {
-    int fd, ret;
+    int fd = -1, ret;
 
-    // printf("Tentando IP:%s\n",hostname);
-    // fd = telnet_login(hostname);
+    // fd = telnet_connect(addr);
+
     // if (fd <= 0) {
-    //     printf("Falhou IP:%s\n",hostname);
-    //     fprintf(stderr, "Failed to connect (user/pass correct?)\n");
     //     return -1;
     // }
 
-    // printf("Tryng user\n");
-    // command(fd, "root\n");
-    // printf("Tryng pass\n");
-    // command(fd, "testenapwd\n");
-    // printf("Tryng command\n");
-    // //command(fd, "terminal length 0\n\n");
+    // while (1) {
+    //     pass = generate_pass();
+    //     ret = telnet_login(fd, pass);
 
-    // command(fd, "touch teste.txt\n\n");
+    //     if (ret)
+    //         break;
+    // }
 
-    findWord();
-
-    ret = 1;
-
-    if (ret != 0) {
-        return -1;
-    }
+    // if (!ret) {
+    //     close(fd);
+    //     return -1;
+    // }
 
     return fd;
 }

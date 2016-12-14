@@ -91,8 +91,8 @@ void findWord() {
                     append_char_function(fourth_char, word, &i);;
                     i++;
                     word[i] = '\0';
+
                     // runTelNetBruteForce(hostname, word);
-                               
                 }
             }
         }
