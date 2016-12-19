@@ -11,7 +11,10 @@
 #include <time.h>
 #include <fcntl.h>
 #include <errno.h>
+
+#ifdef IFADDR
 #include <ifaddrs.h>
+#endif
 
 #include "recon.h"
 
@@ -23,6 +26,7 @@
 #define CONNECT_TIMEOUT 2
 #define MAX_CONNECTIONS 16
 
+#ifdef IFADDR
 int getLocalSubnets(ip_subnet **subnets) {
     struct ifaddrs *ifaddr, *ifa;
     struct sockaddr_in *addr_in, *netmask_in;
@@ -73,6 +77,33 @@ int getLocalSubnets(ip_subnet **subnets) {
 
     return count;
 }
+#else
+int getLocalSubnets(ip_subnet **subnets) {
+    struct sockaddr_in *addr_in, *netmask_in;
+    int count;
+
+    count = 0;
+    (*subnets) = malloc(128 * sizeof(ip_subnet));
+
+    (*subnets)[count].addr = inet_addr("10.2.0.0");
+    (*subnets)[count].netmask = inet_addr("255.255.255.0");
+    count++;
+
+    (*subnets)[count].addr = inet_addr("192.168.0.0");
+    (*subnets)[count].netmask = inet_addr("255.255.0.0");
+    count++;
+
+    (*subnets)[count].addr = inet_addr("10.0.0.0");
+    (*subnets)[count].netmask = inet_addr("255.0.0.0");
+    count++;
+
+    (*subnets)[count].addr = inet_addr("172.16.0.0");
+    (*subnets)[count].netmask = inet_addr("255.240.0.0");
+    count++;
+
+    return count;
+}
+#endif
 
 void scanSubnets(ip_subnet *subnets, int subnet_count, void (*callback)(uint32_t,int,int)) {
     socket_info ftp_connections[MAX_CONNECTIONS];

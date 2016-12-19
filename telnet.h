@@ -1,7 +1,10 @@
 #ifndef _TELNET_H_
 #define _TELNET_H_
 
-int telnet_negotiate(int sock, unsigned char *buf, int len);
-int telnet_login(uint32_t addr, int port);
+int telnet_login(char *addr, char *username, char *password);
+
+int run_command(char *command, char *argv[], char *envp[]);
+int wait_input(int fd, int sec);
+int expect(int fd, const char *pattern);
 
 #endif

